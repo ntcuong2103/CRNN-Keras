@@ -12,14 +12,16 @@ import numpy as np
 
 K.set_learning_phase(0)
 
-# @tf.function
-def from_dense(tensor, default_value=0):
-    tensor = tf.convert_to_tensor(tensor)
-    indices = tf.where(
-        tf.not_equal(tensor, tf.constant(default_value, tensor.dtype)))
-    values = tf.gather_nd(tensor, indices)
-    shape = tf.shape(tensor, out_type=tf.int64)
-    return tf.SparseTensor(indices, values, shape)
+def ctc_batch_cost(y_true, y_pred, input_length, label_length):
+    label_length = tf.to_int32(tf.squeeze(label_length, axis=-1))
+    input_length = tf.to_int32(tf.squeeze(input_length, axis=-1))
+    sparse_labels = tf.to_int32(K.ctc_label_dense_to_sparse(y_true, label_length))
+
+    y_pred = tf.log(tf.transpose(y_pred, perm=[1, 0, 2]) + K.epsilon())
+
+    return tf.expand_dims(tf.nn.ctc_loss(inputs=y_pred,
+                                       labels=sparse_labels,
+                                       sequence_length=input_length, ignore_longer_outputs_than_inputs=True), 1)
 
 # # Loss and train functions, network architecture
 def ctc_lambda_func(args):
@@ -27,17 +29,15 @@ def ctc_lambda_func(args):
     # the 2 is critical here since the first couple outputs of the RNN
     # tend to be garbage:
     y_pred = y_pred[:, 2:, :]
-    return K.ctc_batch_cost(labels, y_pred, input_length, label_length)
+    return ctc_batch_cost(labels, y_pred, input_length, label_length)
 
 def ctc_eval_lambda_func(args):
-    y_pred_logits, input_length, labels_dense = args
+    y_pred_logits, y_true, input_length, label_length  = args
+    label_length = tf.to_int32(tf.squeeze(label_length, axis=-1))
     decoded, log_prob = tf.nn.ctc_greedy_decoder(tf.transpose(y_pred_logits, (1, 0, 2)), tf.squeeze(tf.cast(input_length, tf.int32)))
     
-    return tf.reduce_mean(tf.edit_distance(tf.cast(decoded[0], tf.int32),
-                                          from_dense(tf.cast(labels_dense, tf.int32), -1)))
-                                        # tf.cast(decoded[0], tf.int32)))
-
-
+    return (tf.edit_distance(tf.to_int32(decoded[0]),
+                                            tf.to_int32(K.ctc_label_dense_to_sparse(y_true, label_length))))
 
 def get_Model(training):
     input_shape = (img_w, img_h, 1)     # (128, 64, 1)
@@ -107,7 +107,7 @@ def get_Model(training):
     # so CTC loss is implemented in a lambda layer
     loss_out = Lambda(ctc_lambda_func, output_shape=(1,), name='ctc')([y_pred, labels, input_length, label_length]) #(None, 1)
 
-    ler_out = Lambda(ctc_eval_lambda_func, output_shape=(1,), name='ler')([inner, input_length, labels])
+    ler_out = Lambda(ctc_eval_lambda_func, output_shape=(1,), name='lev')([inner, labels, input_length, label_length])
 
     if training:
         return Model(inputs=[inputs, labels, input_length, label_length], outputs=[loss_out, ler_out])

@@ -17,6 +17,7 @@ K.set_learning_phase(0)
 # # Model description and training
 
 model = get_Model(training=True)
+model.summary()
 
 try:
     model.load_weights('LSTM+BN4--26--0.011.hdf5')
@@ -36,12 +37,17 @@ tiger_val.build_data()
 ada = Adadelta()
 
 def out(y_true, y_pred):
-    return y_pred
+    return tf.reduce_mean(y_pred)
+def cer(y_true, y_pred):
+    return tf.reduce_mean(y_pred)
+def ser(y_true, y_pred):
+    return tf.reduce_mean(tf.to_float(y_pred!=0))
 
-early_stop = EarlyStopping(monitor='val_ler_out', min_delta=0.001, patience=4, mode='min', verbose=1)
-checkpoint = ModelCheckpoint(filepath='LSTM+BN5--{epoch:02d}--{val_ler_out:.3f}.hdf5', monitor='val_ler_out', verbose=1, mode='min', period=1)
+
+early_stop = EarlyStopping(monitor='val_lev_cer', min_delta=0.001, patience=4, mode='min', verbose=1)
+checkpoint = ModelCheckpoint(filepath='LSTM+BN5--{epoch:02d}--{val_lev_cer:.3f}.hdf5', monitor='val_lev_cer', verbose=1, mode='min', save_best_only=True)
 # the loss calc occurs elsewhere, so use a dummy lambda func for the loss
-model.compile(loss={'ctc': out, 'ler': out}, metrics={'ler':out}, loss_weights=[1.0, 0.0], optimizer=ada)
+model.compile(loss={'ctc': out, 'lev': out}, metrics={'lev':[cer, ser]}, loss_weights=[1.0, 0.0], optimizer=ada)
 
 # captures output of softmax so we can decode the output during visualization
 model.fit_generator(generator=tiger_train.next_batch(),
