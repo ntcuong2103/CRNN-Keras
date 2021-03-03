@@ -5,8 +5,13 @@ from keras.layers import Reshape, Lambda, BatchNormalization
 from keras.layers.merge import add, concatenate
 from keras.models import Model
 from keras.layers.recurrent import LSTM
+from numpy.core.fromnumeric import shape
 from parameter import *
+import tensorflow as tf
+import numpy as np
+
 K.set_learning_phase(0)
+
 
 # # Loss and train functions, network architecture
 def ctc_lambda_func(args):
@@ -15,6 +20,14 @@ def ctc_lambda_func(args):
     # tend to be garbage:
     y_pred = y_pred[:, 2:, :]
     return K.ctc_batch_cost(labels, y_pred, input_length, label_length)
+
+def ctc_eval_lambda_func(args):
+    y_pred_logits, input_length, labels_tensor = args
+    decoded, log_prob = tf.nn.ctc_greedy_decoder(tf.transpose(y_pred_logits, (1, 0, 2)), tf.squeeze(tf.cast(input_length, tf.int32)))
+    
+    return tf.reduce_mean(tf.edit_distance(tf.cast(decoded[0], tf.int32),
+                                          labels_tensor))
+
 
 
 def get_Model(training):
@@ -81,12 +94,16 @@ def get_Model(training):
     input_length = Input(name='input_length', shape=[1], dtype='int64')     # (None, 1)
     label_length = Input(name='label_length', shape=[1], dtype='int64')     # (None, 1)
 
+    labels_tensor = Input(name='labels_tensor', shape=[max_text_len], sparse=True, dtype='int32')
+
     # Keras doesn't currently support loss funcs with extra parameters
     # so CTC loss is implemented in a lambda layer
     loss_out = Lambda(ctc_lambda_func, output_shape=(1,), name='ctc')([y_pred, labels, input_length, label_length]) #(None, 1)
 
+    ler_out = Lambda(ctc_eval_lambda_func, output_shape=(1,), name='ler')([inner, input_length, labels_tensor])
+
     if training:
-        return Model(inputs=[inputs, labels, input_length, label_length], outputs=loss_out)
+        return Model(inputs=[inputs, labels, input_length, label_length, labels_tensor], outputs=[loss_out, ler_out])
     else:
         return Model(inputs=[inputs], outputs=y_pred)
 

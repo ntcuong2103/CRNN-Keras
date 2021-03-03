@@ -2,6 +2,28 @@ import cv2
 import os, random
 import numpy as np
 from parameter import letters
+import tensorflow as tf
+
+def sparse_tuple_from(sequences, seq_lens, dtype=np.int32):
+    """Create a sparse representention of x.
+    Args:
+        sequences: a list of lists of type dtype where each element is a sequence
+    Returns:
+        A tuple with (indices, values, shape)
+    """
+    indices = []
+    values = []
+
+    for n, seq, seq_len in enumerate(zip(sequences, seq_lens)):
+        indices.extend(zip([n]*seq_len, range(seq_len)))
+        values.extend(seq)
+
+    indices = np.asarray(indices, dtype=np.int64)
+    values = np.asarray(values, dtype=dtype)
+    shape = np.asarray([len(sequences), np.asarray(indices).max(0)[1]+1], dtype=np.int64)
+
+    return tf.SparseTensor(indices, values, shape)
+
 
 # # Input data generator
 def labels_to_text(labels):     # letters의 index -> text (string)
@@ -68,7 +90,8 @@ class TextImageGenerator:
                 'the_input': X_data,  # (bs, 128, 64, 1)
                 'the_labels': Y_data,  # (bs, 8)
                 'input_length': input_length,  # (bs, 1) -> 모든 원소 value = 30
-                'label_length': label_length  # (bs, 1) -> 모든 원소 value = 8
+                'label_length': label_length,  # (bs, 1) -> 모든 원소 value = 8
+                'labels_sparse': sparse_tuple_from(Y_data, label_length)
             }
             outputs = {'ctc': np.zeros([self.batch_size])}   # (bs, 1) -> 모든 원소 0
             yield (inputs, outputs)

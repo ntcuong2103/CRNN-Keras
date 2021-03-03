@@ -4,6 +4,9 @@ from keras.callbacks import EarlyStopping, ModelCheckpoint
 from Image_Generator import TextImageGenerator
 from Model import get_Model
 from parameter import *
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+
 K.set_learning_phase(0)
 
 # # Model description and training
@@ -30,7 +33,7 @@ ada = Adadelta()
 early_stop = EarlyStopping(monitor='loss', min_delta=0.001, patience=4, mode='min', verbose=1)
 checkpoint = ModelCheckpoint(filepath='LSTM+BN5--{epoch:02d}--{val_loss:.3f}.hdf5', monitor='loss', verbose=1, mode='min', period=1)
 # the loss calc occurs elsewhere, so use a dummy lambda func for the loss
-model.compile(loss={'ctc': lambda y_true, y_pred: y_pred}, optimizer=ada)
+model.compile(loss={'ctc': lambda y_true, y_pred: y_pred[0]}, metrics={'ler': lambda y_true, y_pred: y_pred[1]}, optimizer=ada)
 
 # captures output of softmax so we can decode the output during visualization
 model.fit_generator(generator=tiger_train.next_batch(),
