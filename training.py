@@ -5,7 +5,12 @@ from Image_Generator import TextImageGenerator
 from Model import get_Model
 from parameter import *
 import os
+import tensorflow as tf
+
 os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+gpu_options = tf.GPUOptions(allow_growth=True)
+sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+K.tensorflow_backend.set_session(sess)
 
 K.set_learning_phase(0)
 
@@ -30,10 +35,13 @@ tiger_val.build_data()
 
 ada = Adadelta()
 
-early_stop = EarlyStopping(monitor='loss', min_delta=0.001, patience=4, mode='min', verbose=1)
+def ler_loss(y_true, y_pred):
+    return y_pred
+
+early_stop = EarlyStopping(monitor='ler', min_delta=0.001, patience=4, mode='min', verbose=1)
 checkpoint = ModelCheckpoint(filepath='LSTM+BN5--{epoch:02d}--{val_loss:.3f}.hdf5', monitor='loss', verbose=1, mode='min', period=1)
 # the loss calc occurs elsewhere, so use a dummy lambda func for the loss
-model.compile(loss={'ctc': lambda y_true, y_pred: y_pred[0]}, metrics={'ler': lambda y_true, y_pred: y_pred[1]}, optimizer=ada)
+model.compile(loss={'ctc': ler_loss, 'ler': ler_loss}, loss_weights=[1.0, 0.0], optimizer=ada)
 
 # captures output of softmax so we can decode the output during visualization
 model.fit_generator(generator=tiger_train.next_batch(),
@@ -41,4 +49,5 @@ model.fit_generator(generator=tiger_train.next_batch(),
                     epochs=30,
                     callbacks=[checkpoint],
                     validation_data=tiger_val.next_batch(),
-                    validation_steps=int(tiger_val.n / val_batch_size))
+                    validation_steps=int(tiger_val.n / val_batch_size),
+                    verbose=2)

@@ -12,10 +12,10 @@ import numpy as np
 
 K.set_learning_phase(0)
 
-@tf.function
+# @tf.function
 def from_dense(tensor, default_value=0):
     tensor = tf.convert_to_tensor(tensor)
-    indices = tf.where_v2(
+    indices = tf.where(
         tf.not_equal(tensor, tf.constant(default_value, tensor.dtype)))
     values = tf.gather_nd(tensor, indices)
     shape = tf.shape(tensor, out_type=tf.int64)
@@ -35,6 +35,7 @@ def ctc_eval_lambda_func(args):
     
     return tf.reduce_mean(tf.edit_distance(tf.cast(decoded[0], tf.int32),
                                           from_dense(tf.cast(labels_dense, tf.int32), -1)))
+                                        # tf.cast(decoded[0], tf.int32)))
 
 
 

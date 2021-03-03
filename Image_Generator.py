@@ -70,5 +70,6 @@ class TextImageGenerator:
                 'input_length': input_length,  # (bs, 1) -> 모든 원소 value = 30
                 'label_length': label_length,  # (bs, 1) -> 모든 원소 value = 8
             }
-            outputs = {'ctc': np.zeros([self.batch_size])}   # (bs, 1) -> 모든 원소 0
+            outputs = {'ctc': np.zeros([self.batch_size]), 
+            'ler': np.zeros([self.batch_size])}   # (bs, 1) -> 모든 원소 0
             yield (inputs, outputs)
